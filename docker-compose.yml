@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+    container_name: node-app
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=toor
+      - DB_NAME=quarkleads
+      - DB_DIALECT=postgres
+    ports:
+      - "5000:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: always
+    command: >
+      sh -c "
+        echo 'Waiting for database to be ready...';
+        until nc -z db 5432; do sleep 1; done;
+        echo 'Database is ready!';
+        npx sequelize-cli db:create || echo 'Database already exists';
+        npx sequelize-cli db:migrate:undo:all
+
+        npx sequelize-cli db:migrate;
+        npx sequelize-cli db:seed:all
+        npm start;
+      "
+
+  db:
+    image: postgres:14
+    container_name: postgres-db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=toor
+      - POSTGRES_DB=quarkleads  # Ensures the DB is created if it doesn't exist
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data  # Persistent database storage
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d quarkleads"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 5s
+    networks:
+      - app-network
+    restart: always
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  pgdata:

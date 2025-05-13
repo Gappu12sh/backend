@@ -1,0 +1,23 @@
+{
+  "development": {
+    "username": "postgres",
+    "password": "toor",
+    "database": "quarkleads",
+    "host": "db",
+    "dialect": "postgres"
+  },
+  "test": {
+    "username": "root",
+    "password": null,
+    "database": "database_test",
+    "host": "db",
+    "dialect": "mysql"
+  },
+  "production": {
+    "username": "root",
+    "password": null,
+    "database": "database_production",
+    "host": "db",
+    "dialect": "mysql"
+  }
+}

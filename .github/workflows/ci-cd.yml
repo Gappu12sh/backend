@@ -1,0 +1,112 @@
+name: CRM Node.js Deployment
+
+on:
+  push:
+    branches:
+      - main  
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Remove Conflicting `containerd`
+      run: |
+        sudo apt-get remove -y containerd.io containerd docker docker.io docker-ce docker-ce-cli docker-buildx-plugin docker-compose-plugin
+        sudo apt-get autoremove -y
+
+    - name: Install Docker from Official Repo
+      run: |
+        sudo apt update
+        sudo apt install -y ca-certificates curl gnupg
+
+        # Add Docker GPG Key & Repo
+        sudo install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo tee /etc/apt/keyrings/docker.asc > /dev/null
+        sudo chmod a+r /etc/apt/keyrings/docker.asc
+        echo "deb [signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+        sudo apt update
+        sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin
+
+    - name: Install Docker Compose
+      run: |
+        DOCKER_COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | jq -r .tag_name)
+        sudo curl -L "https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+        sudo chmod +x /usr/local/bin/docker-compose
+        docker-compose --version  # Verify installation
+
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Build and push Docker images
+      run: |
+        docker-compose build
+        docker-compose push
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+    - name: Deploy to VPS
+      uses: appleboy/ssh-action@v0.1.5
+      with:
+        host: ${{ secrets.VPS_HOST }}  
+        username: root  
+        key: ${{ secrets.SSH_PRIVATE_KEY }}  
+        script: |
+          echo "🚀 Starting Deployment"
+
+          # Ensure Git is installed
+          apt update && apt install -y git
+
+          # Clone or update repository
+          if [ ! -d "/var/www/crm/backend/.git" ]; then
+            rm -rf /var/www/crm/backend
+            git clone https://${{ secrets.GH_PAT }}@github.com/error2OO/crm-backend.git /var/www/crm/backend
+          fi
+
+          cd /var/www/crm/backend
+          git checkout main
+          git pull origin main
+
+          # Apply environment variables
+          echo "${{ secrets.ENV_FILE_CONTENTS }}" > .env
+
+          # Stop and remove old containers, clean up
+          docker-compose down
+          docker system prune -af
+
+          # Pull latest images
+          docker-compose pull
+
+          # Start services
+          echo "🚀 Starting all services..."
+          docker-compose up -d --force-recreate --remove-orphans
+
+          echo "⏳ Waiting for database to be ready..."
+          
+          # Ensure DB container is running
+          until [ "$(docker inspect -f '{{.State.Running}}' postgres-db 2>/dev/null)" == "true" ]; do
+            echo "Database container not running yet. Retrying in 5s..."
+            sleep 5
+          done
+
+          # Ensure Database is accepting connections
+          until docker exec postgres-db pg_isready -U postgres -d quarkleads; do
+            echo "Database not ready yet. Waiting..."
+            sleep 5
+          done
+
+          echo "✅ Database is ready!"
+
+          # Run Sequelize Migrations
+          echo "⚙️ Running Migrations..."
+          docker-compose run --rm app npx sequelize-cli db:migrate
+
+          echo "🎉 Deployment Completed Successfully!"
