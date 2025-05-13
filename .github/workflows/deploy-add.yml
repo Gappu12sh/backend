@@ -3,7 +3,7 @@ name: Deploy Node.js Backend with PM2
 on:
   push:
     branches:
-      - main  # or the branch you use for deployment
+      - master  # or the branch you use for deployment
 
 jobs:
   deploy:
