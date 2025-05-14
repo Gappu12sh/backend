@@ -30,8 +30,9 @@ jobs:
 
             # If repo not cloned yet, clone it
             if [ ! -d ".git" ]; then
-              git clone https://github.com/Gappu12sh/backend.git .
+              git clone https://github.com/Gappu12sh/backend.git crm-backend
             else
+              cd crm-backend
               git pull origin master
             fi
 
