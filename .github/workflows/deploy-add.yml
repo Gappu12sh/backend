@@ -3,7 +3,7 @@ name: Deploy Node.js Backend with PM2
 on:
   push:
     branches:
-      - master
+      - master  # or main if you're using that
 
 jobs:
   deploy:
@@ -20,12 +20,27 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
 
-      - name: Deploy to Server
+      - name: Deploy to EC2
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
-            cd /home/ubuntu/backend || { echo "Directory not found!"; exit 1; }
-            git clone https://github.com/Gappu12sh/backend.git
-            git pull origin main
+            set -e  # Exit on error
+
+            
+            cd /home/ubuntu/backend
+
+            # If repo not cloned yet, clone it
+            if [ ! -d ".git" ]; then
+              git clone https://github.com/Gappu12sh/backend.git .
+            else
+              git pull origin master
+            fi
+
             npm install
-            pm2 restart server.js --name "backend"
+
+            # Restart or start app with PM2
+            if pm2 list | grep -q "backend"; then
+              pm2 restart backend
+            else
+              pm2 start server.js --name "backend"
+            fi
           EOF
