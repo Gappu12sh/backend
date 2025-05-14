@@ -3,7 +3,7 @@ name: Deploy Node.js Backend with PM2
 on:
   push:
     branches:
-      - master  # or the branch you use for deployment
+      - master
 
 jobs:
   deploy:
@@ -18,18 +18,13 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Deploy to Server
         run: |
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
-            # Check if the directory exists
-            if [ -d "/home/ubuntu/backend/crm-backend-main" ]; then
-              cd /home/ubuntu/backend/crm-backend-main
-              git pull origin main
-              npm install
-              pm2 restart server.js --name "backend"
-            else
-              echo "Directory does not exist!"
-            fi
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+            cd /home/ubuntu/backend/crm-backend-main || { echo "Directory not found!"; exit 1; }
+            git pull origin main
+            npm install
+            pm2 restart server.js --name "backend"
           EOF
