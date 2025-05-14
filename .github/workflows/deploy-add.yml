@@ -26,16 +26,17 @@ jobs:
             set -e  # Exit on error
 
             
-            cd /home/ubuntu/backend
+            cd /home/ubuntu/backend/crm-beckend
 
             # If repo not cloned yet, clone it
             if [ ! -d ".git" ]; then
-              git clone https://github.com/Gappu12sh/backend.git crm-backend
+               git pull origin master
+             
             else
-              cd crm-backend
-              git pull origin master
+              echo "Error: The directory is not a valid git repository."
+              exit 1
             fi
-            cd crm-backend
+            
             npm install
 
             # Restart or start app with PM2
