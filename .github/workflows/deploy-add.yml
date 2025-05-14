@@ -30,13 +30,13 @@ jobs:
 
             # If repo not cloned yet, clone it
             if [ ! -d ".git" ]; then
-               git pull origin master
-             
+              echo "Cloning repository..."
+              rm -rf crm-backend  # Clean up any old files
+              git clone https://github.com/Gappu12sh/backend.git crm-backend
             else
-              echo "Error: The directory is not a valid git repository."
-              exit 1
+              echo "Pulling latest changes..."
+              git pull origin master
             fi
-            
             npm install
 
             # Restart or start app with PM2
